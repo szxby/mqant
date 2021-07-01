@@ -228,6 +228,7 @@ func (age *agent) OnRecover(pack *mqtt.Pack) {
 		if err != nil {
 			return
 		}
+		// no need return recover
 		if _, ok := m["msg_id"]; !ok {
 			age.recoverworker(pack)
 		} else {
