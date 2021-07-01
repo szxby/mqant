@@ -19,18 +19,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/liangdas/mqant/conf"
 	"github.com/liangdas/mqant/gate"
 	"github.com/liangdas/mqant/gate/base/mqtt"
 	"github.com/liangdas/mqant/log"
 	"github.com/liangdas/mqant/module"
 	"github.com/liangdas/mqant/network"
-	"github.com/liangdas/mqant/rpc/util"
-	"github.com/liangdas/mqant/utils"
-	"runtime"
-	"strings"
-	"sync"
-	"time"
+	argsutil "github.com/liangdas/mqant/rpc/util"
+	mqanttools "github.com/liangdas/mqant/utils"
 )
 
 //type resultInfo struct {
@@ -216,7 +218,21 @@ func (age *agent) OnRecover(pack *mqtt.Pack) {
 		pub := pack.GetVariable().(*mqtt.Publish)
 		age.toResult(age, *pub.GetTopic(), nil, err.Error())
 	} else {
-		go age.recoverworker(pack)
+		pub := pack.GetVariable().(*mqtt.Publish)
+		topic := *pub.GetTopic()
+		uu, err := url.Parse(topic)
+		if err != nil {
+			return
+		}
+		m, err := url.ParseQuery(uu.RawQuery)
+		if err != nil {
+			return
+		}
+		if _, ok := m["msg_id"]; !ok {
+			age.recoverworker(pack)
+		} else {
+			go age.recoverworker(pack)
+		}
 	}
 }
 
@@ -303,7 +319,7 @@ func (age *agent) recoverworker(pack *mqtt.Pack) {
 				}
 				return
 			}
-			if len(pub.GetMsg())>0&&pub.GetMsg()[0] == '{' && pub.GetMsg()[len(pub.GetMsg())-1] == '}' {
+			if len(pub.GetMsg()) > 0 && pub.GetMsg()[0] == '{' && pub.GetMsg()[len(pub.GetMsg())-1] == '}' {
 				//尝试解析为json为map
 				var obj interface{} // var obj map[string]interface{}
 				err := json.Unmarshal(pub.GetMsg(), &obj)
